@@ -1,33 +1,15 @@
 # Reddit post bot
-import json
-from re import template
-import praw
-import requests
-import sys
-import logging
-from PIL import Image
 import os
+import random
+import sys
+from PIL import Image
 import time
-
-# Define a post template. It should contain an image, a subject, and a caption. The subject and caption should be auto generated from the image. It may also contain an optional automated comment to plug my gram
-class post_template:
-    subr = ""
-    desc = ""
-    comm = ""
-
-    def __init__(self, subreddit, description, comment):
-        self.subr = subreddit
-        self.desc = description
-        self.comm = comment
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, post_template):
-            return self.subr == other.subr
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        return hash(self.subr)
-
+import post_template
+import image_info
+import subreddits
+import post_manager as pm
+import pickle
+import datetime
 
 # Useful title and comment fillers
 instagram = "@andrew.rimanic"
@@ -36,56 +18,12 @@ comment = f"A single blue and gold macaw landed in the middle of all of the scar
 country = 'Peru'
 
 # Image info
-image_path = '/Users/andrewrimanic/OneDrive/Photos/Reddit/To Post/IMG_3046.jpg'
-image = Image.open(image_path)
+# image_path = '/Users/andrewrimanic/OneDrive/Photos/Reddit/To Post/IMG_3046.jpg'
+# image = Image.open(image_path)
 # Use image.width and image.height for pixel size
 
 # Define a LUT of post templates indexed by subreddit
-landscape_templates = {
-    # post_template("pythonsandlot", f"{title}", f"{comment}")
-    post_template("itookapicture", f"ITAP of {title}", f"{comment}"),
-    post_template("nocontextpics", "PIC", f"{comment}"),
-    post_template("pics", f"{title}", f"{comment}"),
-    post_template("naturepics", f"{title}", f"{comment}"),
-    post_template("naturephotography", f"{title}", f"{comment}"),
-    post_template("landscapephotography", f"{title} [OC] [{image.width}x{image.height}]", f"{comment}"),
-    post_template("casualphoto", f"{title}", f"{comment}"),
-    post_template("Images", f"{title}", f"{comment}"),
-    post_template("pic", f"{title}", f"{comment}"),
-    post_template("travel", f"{title} in {country}", f"{comment}"),
-    post_template("campingandhiking", f"{title} in {country}", f"{comment}"),
-    post_template("earthporn", f"{title} [OC] [{image.width}x{image.height}] IG:{instagram}", "") # Dont post things with man made objects
-}
 
-wildlife_templates = {
-    post_template("Natureisfuckinglit", f"\N{fire} {title}", f"{comment}"),
-    post_template("itookapicture", f"ITAP of {title}", f"{comment}"),
-    post_template("nocontextpics", "PIC", f"{comment}"),
-    post_template("pics", f"{title}", f"{comment}"),
-    post_template("naturepics", f"{title}", f"{comment}"),
-    post_template("naturephotography", f"{title}", f"{comment}"),
-    post_template("wildlifephotography", f"{title} [OC] [{image.width}x{image.height}]", f"{comment}"),
-    post_template("pic", f"{title}", f"{comment}"),
-    post_template("casualphoto", f"{title}", f"{comment}"),
-    post_template("Images", f"{title}", f"{comment}")
-}
-
-
-
-
-def create_post(template, image, reddit): 
-
-    subr = reddit.subreddit(template.subr) # Initialize the subreddit to a variable
-
-    response = subr.submit_image(template.desc, image, timeout=60, without_websockets=False)
-
-    if template.comm:
-        response.reply(template.comm)
-
-def mass_post(templates, image, reddit):
-    for template in templates:
-        create_post(template, image, reddit)
-        time.sleep(300)
 
 def preview_all(templates):
     for template in templates:
@@ -95,44 +33,69 @@ def preview_all(templates):
         ''')
 
 def main():
-    credentials = 'client_secrets.json'
-    
-    with open(credentials) as f:
-        creds = json.load(f)
+    # Manager for reddit posts
+    manager = pm.PostManager()
 
-    # Uncomment for verbose logging
-    # logging.basicConfig()
-    # logging.getLogger().setLevel(logging.DEBUG)
-    # requests_log = logging.getLogger("requests.packages.urllib3")
-    # requests_log.setLevel(logging.DEBUG)
-    # requests_log.propagate = True
+    # Load history
+    try:
+        history = pickle.load(open("history.pkl", "rb"))
+    except:
+        history = dict()
 
-    reddit = praw.Reddit(client_id=creds['client_id'],
-                     client_secret=creds['client_secret'],
-                     user_agent=creds['user_agent'],
-                     redirect_uri=creds['redirect_uri'],
-                     refresh_token=creds['refresh_token'],
-                     ratelimit_seconds = 600)
+    while(True):
+        # Pull a random image from a folder
+        im_name = random.choice(os.listdir("/Applications/Reddit Poster/images"))
+        im = Image.open(os.path.join(os.path.curdir, "images" , im_name))
 
-    reddit.validate_on_submit = True
+        # Make sure this image is in the history
+        if im_name not in history.keys():
+            history[im_name] = dict()
 
-    # Remove duplicates
-    templates = list(set(wildlife_templates))
-    
-    # Preview the captions
-    preview_all(templates)
-
-    # Confirm that captions are good
-    value = input("Are these captions okay? (y/n):\n")
-    if(value == 'y'):
-        mass_post(templates, image_path, reddit)
+        # check the last time this was posted
+        elapsed = datetime.datetime.now() - history[im_name]["last_posted"]
+        if elapsed.days < 7:
+            continue
         
-        # Move the picture to the posted folder
-        os.rename(image_path, image_path.replace("To Post", "Posted"))
+        # Look up the info needed to fill the template (dimensions, title, comment, wildlife or landscape)
+        info : image_info.ImageInfo = image_info.im_info[im_name]
+        width = im.width
+        height = im.height
 
-        print("Image posted")
-    else:
-        print("Image not posted")
+        # Find all subreddits that this image can be posted to
+        if info.category == 'l':
+            templates = subreddits.landscape_templates
+        elif info.category == 'w':
+            templates = subreddits.wildlife_templates
+        else:
+            templates = {}
+
+        # Pick a random subreddit
+        valid_subreddits = [x for x in templates.keys() if x not in history[im_name].keys()]
+        if len(valid_subreddits) < 1:
+            continue
+
+        subreddit = random.choice(valid_subreddits)
+        
+        # Get the template for the randomly selected subreddit
+        template : post_template.post_template = templates[subreddit]
+
+        # Fill in the template for that subreddit
+        template.desc.format(title=info.title, width=width, height=height)
+        template.comm.format(comment=info.description)
+
+        # create the post
+        #reference = manager.create_post(template, im)
+        reference = "abc"
+        post_time = datetime.datetime.now()
+
+        # mark the image as posted in that subreddit (probably a pickle table)
+        # Add to this image's list of subreddits
+        history[im_name][subreddit] = (reference, post_time)
+        history[im_name]["last_posted"] = post_time
+        pickle.dump(history, open("history.pkl", "wb"))
+
+        # sleep for a period of time
+        #time.sleep(8*3600)
 
 if __name__ == "__main__":
     sys.exit(main())
