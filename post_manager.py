@@ -28,13 +28,18 @@ class PostManager:
 
 
 
-    def create_post(self, template, image): 
+    def create_post(self, subreddit, template, image): 
 
-        subr = self._reddit.subreddit(template.subr) # Initialize the subreddit to a variable
+        subr = self._reddit.subreddit(subreddit) # Initialize the subreddit to a variable
+        # subr = self._reddit.subreddit('pythonsandlot') # TEST
 
         response = subr.submit_image(template.desc, image, timeout=60, without_websockets=False)
+        try:
+            response.mod.set_original_content()
+        except:
+            pass
 
-        if template.comm:
-            response.reply(template.comm)
+        # if template.comm:
+            # response.reply(template.comm)
         
         return response
