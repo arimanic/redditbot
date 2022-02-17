@@ -75,7 +75,7 @@ im_info = {
     "IMG_0263-Edit.jpg" : ImageInfo('l p', "The 6000m twin peaks of Jirishanca and Mituraju", "", ""),
     "IMG_0067-Pano.jpg" : ImageInfo('l p', "A rainbow mountain in Peru", "", ""),
     "IMG_9698.jpg" : ImageInfo('w', "Lovebirds. Macaws mate for life and can live to be up to 90 years old!", "", ""),
-    "IMG_.jpg" : ImageInfo('', "", "", ""),
+    "IMG_3528.jpg" : ImageInfo('bc', "The Sea To Sky Gondola", "", ""),
     "IMG_.jpg" : ImageInfo('', "", "", ""),
     "IMG_.jpg" : ImageInfo('', "", "", ""),
     "IMG_.jpg" : ImageInfo('', "", "", ""),

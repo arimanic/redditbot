@@ -32,8 +32,21 @@ class PostManager:
 
         subr = self._reddit.subreddit(subreddit) # Initialize the subreddit to a variable
         # subr = self._reddit.subreddit('pythonsandlot') # TEST
+        subr = self._reddit.subreddit('britishcolumbia') # TEST
 
-        response = subr.submit_image(template.desc, image, timeout=60, without_websockets=False)
+        if subreddit == 'vancouver':
+            flairs = list(subr.flair.link_templates.user_selectable())
+            flair_id = None
+            for flair in flairs:
+                if flair['flair_text'] == "Media":
+                    flair_id = flair['flair_template_id']
+                    break
+                    
+            response = subr.submit_image(template.desc, image, timeout=60, without_websockets=False, flair_id=flair_id) 
+        else:
+            response = subr.submit_image(template.desc, image, timeout=60, without_websockets=False)
+
+
         try:
             response.mod.set_original_content()
         except:

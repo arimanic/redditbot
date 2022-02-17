@@ -51,9 +51,8 @@ def main():
                 seconds += 86400
 
             print(f"slept at {datetime.datetime.now()}")
-            time.sleep(seconds)
-            # time.sleep(600)
-            continue
+            # time.sleep(seconds)
+            # continue
 
         # Pull a random image from a folder
         im_name = random.choice(os.listdir("/Applications/Reddit Poster/in_rotation"))
